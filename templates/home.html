@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pickleball Scheduler</title>
+    <script>
+        // Function to generate input fields for player names
+        function generatePlayerInputs() {
+            const numPlayers = document.getElementById("num_players").value;
+            const playerForm = document.getElementById("player_form");
+
+            // Clear previous input fields
+            playerForm.innerHTML = '';
+
+            // Create input fields for each player name
+            for (let i = 1; i <= numPlayers; i++) {
+                const label = document.createElement("label");
+                label.for = `player_${i}`;
+                label.textContent = `Player ${i} Name: `;
+
+                const inputField = document.createElement("input");
+                inputField.type = "text";
+                inputField.id = `player_${i}`;
+                inputField.name = `player_${i}`;
+                inputField.required = true;
+
+                playerForm.appendChild(label);
+                playerForm.appendChild(inputField);
+                playerForm.appendChild(document.createElement("br"));
+            }
+
+            // Add a submit button to submit the names
+            const submitButton = document.createElement("button");
+            submitButton.type = "button";
+            submitButton.textContent = "Submit Player Names";
+            submitButton.onclick = submitPlayerNames; // Attach function to submit player names
+            playerForm.appendChild(submitButton);
+        }
+
+        // Function to handle the submission of player names via AJAX
+        function submitPlayerNames() {
+            const numPlayers = document.getElementById("num_players").value;
+            const formData = new FormData();
+
+            // Collect the names of all players
+            formData.append('num_players', numPlayers);
+            const playerNames = [];
+            for (let i = 1; i <= numPlayers; i++) {
+                const playerName = document.getElementById(`player_${i}`).value;
+                formData.append(`player_${i}`, playerName);
+                playerNames.push(playerName); // Add player name to array
+            }
+
+            fetch('/submit_players', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById("results");
+                resultDiv.innerHTML = '<h2>Player List:</h2><ul>';
+
+                data.player_names.forEach(name => {
+                    const listItem = document.createElement("li");
+                    listItem.textContent = name;
+                    resultDiv.querySelector('ul').appendChild(listItem);
+                });
+
+                resultDiv.innerHTML += '</ul>';
+
+                // Update Generate Fixtures button with player names
+                updateGenerateButton(data.player_names);
+                document.getElementById("generate_fixtures_btn").style.display = "block"; // Show the button
+            });
+        }
+
+        // Function to update Generate Fixtures button URL
+        function updateGenerateButton(playerNames) {
+            const generateButton = document.getElementById("generate_fixtures_btn");
+            generateButton.href = `/fixtures?player_names=${playerNames.join(',')}`; // Remove .html
+        }
+
+    </script>
+
+</head>
+<body>
+    <h1>Pickleball Scheduler</h1>
+
+    <!-- Form to ask for number of players -->
+    <form onsubmit="event.preventDefault(); generatePlayerInputs();">
+        <label for="num_players">Enter Number of Players:</label>
+        <input type="number" id="num_players" name="num_players" min="4" max="20" required>
+        <button type="submit">Next</button>
+    </form>
+
+    <!-- Form for dynamically generating player name inputs -->
+    <form id="player_form">
+        <!-- Player input fields will be generated here -->
+    </form>
+
+    <!-- Section to display the submitted player names -->
+    <div id="results"></div>
+
+    <!-- Button to generate fixtures -->
+    <a id="generate_fixtures_btn" href="#" style="display: none;">
+    <button style="background-color: white; color: black;">Generate Fixtures</button>
+</a>
+</body>
+</html>

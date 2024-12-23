@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Fixtures</title>
+</head>
+<body>
+    <h1>Player Names Submitted</h1>
+
+    <h2>Players:</h2>
+    <ul>
+        {% for player in player_names %}
+            <li>{{ player }}</li>
+        {% endfor %}
+    </ul>
+
+    <form action="/generate_fixtures" method="POST">
+        {% for player in player_names %}
+            <input type="hidden" name="player_names" value="{{ player }}">
+        {% endfor %}
+        <button type="submit">Generate Fixtures</button>
+    </form>
+
+
+</body>
+</html>

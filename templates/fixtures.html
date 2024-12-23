@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixtures</title>
+       <style>
+        /* Remove bullet points and adjust padding for the fixture list */
+        ul#fixture_list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        /* Optional: Add some spacing between list items */
+        ul#fixture_list li {
+            margin-bottom: 10px;
+        }
+    </style>
+    <script>
+        // Function to add a new game
+// Function to add a new game
+    function addGame() {
+        fetch('/add_game', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const fixtureList = document.getElementById("fixture_list");
+
+                // Create a list item for the new fixture with the game number
+                const listItem = document.createElement("li");
+                const gameNumber = data.new_fixture.game_number;
+                const teams = data.new_fixture.teams;
+                listItem.setAttribute("data-game-number", gameNumber);  // Ensure data-game-number is set
+                listItem.innerHTML = `<button onclick="moveUp(this)">&uarr;</button>
+                 <button onclick="moveDown(this)">&darr;</button>
+                Game ${gameNumber}: ${teams[0][0]} & ${teams[0][1]} vs ${teams[1][0]} & ${teams[1][1]}`;
+
+                // Add score dropdowns for the new game
+                const score1 = createScoreDropdown();
+                const score2 = createScoreDropdown();
+
+                score1.id = `score1-${gameNumber}`;
+                score2.id = `score2-${gameNumber}`;
+
+                // Append score dropdowns to the list item
+                listItem.appendChild(score1);
+                listItem.appendChild(document.createTextNode(" - "));
+                listItem.appendChild(score2);
+
+                // Append the new game to the fixture list
+                fixtureList.appendChild(listItem);
+
+                // Update the games played table dynamically
+                updateGameCountTable(data.game_count);
+
+                // Check if the fallback message exists (when fallback is used)
+                if (data.fallback === true) {
+                    alert(data.message);  // Show the fallback message when applicable
+            }
+            } else {
+                alert(data.message || "Failed to add a new game.");
+            }
+        })
+        .catch(error => {
+            console.error('Error adding game:', error);
+        });
+    }
+
+        // Function to create a dropdown for score selection
+        function createScoreDropdown() {
+            const dropdown = document.createElement("select");
+            for (let i = 0; i <= 15; i++) {
+                const option = document.createElement("option");
+                option.value = i;
+                option.text = i;
+                dropdown.appendChild(option);
+            }
+            return dropdown;
+        }
+
+        // Function to move a game up in the list
+        function moveUp(button) {
+            const listItem = button.parentElement;
+            const previousItem = listItem.previousElementSibling;
+            if (previousItem) {
+                listItem.parentElement.insertBefore(listItem, previousItem);
+            }
+        }
+
+        // Function to move a game down in the list
+        function moveDown(button) {
+            const listItem = button.parentElement;
+            const nextItem = listItem.nextElementSibling;
+            if (nextItem) {
+                listItem.parentElement.insertBefore(nextItem, listItem);
+            }
+        }
+
+        // Function to save all scores and send to server
+    function saveAllScores() {
+        const scores = {};
+
+        // Gather all the scores from the dropdowns
+        const fixtureItems = document.querySelectorAll("#fixture_list li");
+        fixtureItems.forEach(item => {
+            const gameNumber = item.getAttribute("data-game-number");
+            const score1 = document.getElementById(`score1-${gameNumber}`).value;
+            const score2 = document.getElementById(`score2-${gameNumber}`).value;
+            scores[`score1-${gameNumber}`] = score1;
+            scores[`score2-${gameNumber}`] = score2;
+        });
+
+        // Send the scores to the server
+        fetch('/save_scores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scores: scores })
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateGamesWonAndPointsDiff(data.sorted_data); // Pass the sorted data to update the table
+        })
+        .catch(error => console.error('Error saving scores:', error));
+    }
+
+    // Function to update the Games Won and Points Difference columns in sorted order
+    function updateGamesWonAndPointsDiff(sortedData) {
+        const tableBody = document.querySelector("#games_played_table tbody");
+
+        // Clear the existing table rows
+        tableBody.innerHTML = '';
+
+        // Iterate over the sorted data and update the table
+        sortedData.forEach(playerData => {
+            const row = document.createElement("tr");
+            row.id = `row-${playerData.player}`;
+
+            const playerCell = document.createElement("td");
+            const gamesPlayedCell = document.createElement("td");  // Added cell for games played
+            const gamesWonCell = document.createElement("td");
+            const pointsDiffCell = document.createElement("td");
+
+            // Assign the correct data to each cell
+            playerCell.textContent = playerData.player;                 // Player's name
+            gamesPlayedCell.textContent = playerData.games_played;      // Games played
+            gamesWonCell.textContent = playerData.games_won;            // Correctly assigning games won
+            pointsDiffCell.textContent = playerData.points_diff;        // Correctly assigning points difference
+
+            // Append cells to the row
+            row.appendChild(playerCell);
+            row.appendChild(gamesPlayedCell);
+            row.appendChild(gamesWonCell);
+            row.appendChild(pointsDiffCell);
+
+            // Append the row to the table
+            tableBody.appendChild(row);
+        });
+    }
+
+
+
+    // Function to update the game count table dynamically without resetting the games won
+    function updateGameCountTable(gameCount) {
+        const tableBody = document.querySelector("#games_played_table tbody");
+
+        // Iterate over the updated game count and update the table if player already exists
+        for (const player in gameCount) {
+            let row = document.getElementById(`row-${player}`);
+            if (!row) {
+                // Create a new row for the player if it doesn't exist
+                row = document.createElement("tr");
+                row.id = `row-${player}`;
+
+                const playerCell = document.createElement("td");
+                const gamesPlayedCell = document.createElement("td");
+                const gamesWonCell = document.createElement("td");
+                const pointsDiffCell = document.createElement("td"); // Add Points Difference Cell
+
+                playerCell.textContent = player;
+                gamesPlayedCell.textContent = gameCount[player];
+                gamesWonCell.textContent = 0; // Initially, set games won to 0
+                pointsDiffCell.textContent = 0; // Initially, set points difference to 0
+
+                row.appendChild(playerCell);
+                row.appendChild(gamesPlayedCell);
+                row.appendChild(gamesWonCell);
+                row.appendChild(pointsDiffCell);
+
+                tableBody.appendChild(row);
+            } else {
+                // Update the games played for existing players without changing games won
+                const gamesPlayedCell = row.querySelector("td:nth-child(2)");
+                gamesPlayedCell.textContent = gameCount[player];
+            }
+        }
+    }
+
+    // Initial setup for the fixtures generated on page load
+    document.addEventListener("DOMContentLoaded", function () {
+        const fixtureListItems = document.querySelectorAll("#fixture_list li");
+
+        fixtureListItems.forEach(item => {
+            const score1 = item.querySelector("select:first-of-type");
+            const score2 = item.querySelector("select:last-of-type");
+
+            const teamsData = JSON.parse(item.getAttribute("data-teams"));
+
+            score1.onchange = () => handleScoreChange(teamsData, score1, score2);
+            score2.onchange = () => handleScoreChange(teamsData, score1, score2);
+        });
+    });
+
+   function deleteLastGame() {
+    fetch('/delete_last_game', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        const fixtureList = document.getElementById("fixture_list");
+        if (fixtureList.lastElementChild) {
+            fixtureList.removeChild(fixtureList.lastElementChild);  // Remove the last game from the list
+        }
+
+        // Update the Games Played column dynamically
+        updateGameCountTable(data.game_count);
+    })
+    .catch(error => console.error('Error deleting last game:', error));
+}
+
+// Function to create Finals by reading from the "Games Played by Each Player" table
+function createFinals() {
+    const tableRows = document.querySelectorAll("#games_played_table tbody tr");
+
+    if (tableRows.length < 4) {
+        alert("Not enough players to create the finals.");
+        return;
+    }
+
+    // Extract the top 4 players from the table
+    const player1 = tableRows[0].cells[0].innerText;  // First player (most wins)
+    const player2 = tableRows[1].cells[0].innerText;  // Second player
+    const player3 = tableRows[2].cells[0].innerText;  // Third player
+    const player4 = tableRows[3].cells[0].innerText;  // Fourth player
+
+    // Create teams
+    const team1 = [player1, player3];  // Player 1 and Player 3
+    const team2 = [player2, player4];  // Player 2 and Player 4
+
+    // Display the finals
+    const finalsGameDiv = document.getElementById("finalsGame");
+    finalsGameDiv.innerHTML = `Final: ${team1[0]} & ${team1[1]} vs ${team2[0]} & ${team2[1]}`;
+
+    // Show finals container
+    const finalsContainer = document.getElementById("finalsContainer");
+    finalsContainer.style.display = 'block';
+}
+
+
+function submitFinalScore() {
+    const score1 = document.getElementById("finalsScore1").value;
+    const score2 = document.getElementById("finalsScore2").value;
+
+    // Get team names from the displayed finals game
+    const finalsGameDiv = document.getElementById("finalsGame").innerText;
+    const teams = finalsGameDiv.match(/Final: (.+) & (.+) vs (.+) & (.+)/);  // Corrected regex to capture team names
+
+    if (!teams || teams.length < 5) {
+        alert("Error extracting team names from the final game.");
+        return;
+    }
+
+    const team1 = [teams[1], teams[2]];  // Extracting Team 1 players
+    const team2 = [teams[3], teams[4]];  // Extracting Team 2 players
+
+    fetch('/save_final_score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            score1: score1,
+            score2: score2,
+            team1: team1,
+            team2: team2
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById("finalsResult").innerText = data.winner;
+        } else {
+            alert("Failed to save final score.");
+        }
+    })
+    .catch(error => {
+        console.error('Error saving final score:', error);
+    });
+}
+
+// Warn the user before leaving or reloading the page
+window.addEventListener('beforeunload', function(e) {
+    // The message below won't display in modern browsers.
+    const confirmationMessage = "Are you sure you want to leave? Unsaved changes may be lost.";
+
+    e.preventDefault(); // Some browsers require this for the event to work
+    e.returnValue = confirmationMessage; // Most browsers show their default confirmation message
+    return confirmationMessage;
+});
+
+</script>
+</head>
+<body>
+    <h1>Fixtures</h1>
+
+    <!-- Fixtures List -->
+    <ul id="fixture_list">
+    {% for fixture in fixtures %}
+    <li data-game-number="{{ fixture.game_number }}">
+        <!-- Move buttons for rearranging games -->
+        <button onclick="moveUp(this)">&uarr;</button>
+        <button onclick="moveDown(this)">&darr;</button>
+        Game {{ fixture.game_number }}: {{ fixture.teams[0][0] }} & {{ fixture.teams[0][1] }} vs {{ fixture.teams[1][0] }} & {{ fixture.teams[1][1] }}
+        <!-- Score dropdowns -->
+        <select id="score1-{{ fixture.game_number }}">
+            {% for i in range(16) %}
+                <option value="{{ i }}">{{ i }}</option>
+            {% endfor %}
+        </select>
+        -
+        <select id="score2-{{ fixture.game_number }}">
+            {% for i in range(16) %}
+                <option value="{{ i }}">{{ i }}</option>
+            {% endfor %}
+        </select>
+    </li>
+    {% endfor %}
+</ul>
+
+
+    <!-- Button to add a new game -->
+    <button onclick="addGame()">Add Game</button>
+
+     <button onclick="deleteLastGame()">Delete Game</button>
+
+    <!-- Add the Save Scores button -->
+<button onclick="saveAllScores()">Save Scores</button>
+
+
+    <!-- Games Played Table -->
+    <h2>Games Played by Each Player</h2>
+    <table border="1" id="games_played_table">
+    <thead>
+        <tr>
+            <th>Player</th>
+            <th>Games Played</th>
+            <th>Games Won</th>
+            <th>Points Difference</th> <!-- Points Difference column -->
+        </tr>
+    </thead>
+    <tbody>
+        {% for player, games in game_count.items() %}
+        <tr id="row-{{ player }}">
+            <td>{{ player }}</td>
+            <td>{{ games }}</td>
+            <td class="games-won">0</td> <!-- Initially set to 0 -->
+            <td class="points-diff">0</td> <!-- Initially set to 0 -->
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div>
+    <button id="finalsButton" onclick="createFinals()">Finals</button>
+</div>
+<div id="finalsContainer" style="display:none;">
+    <h3>Finals</h3>
+    <div id="finalsGame"></div>
+    <label for="finalsScore1">Score for Team 1:</label>
+    <select id="finalsScore1">
+        <script>for (let i = 0; i <= 15; i++) {document.write(`<option value="${i}">${i}</option>`);}</script>
+    </select>
+    <label for="finalsScore2">Score for Team 2:</label>
+    <select id="finalsScore2">
+        <script>for (let i = 0; i <= 15; i++) {document.write(`<option value="${i}">${i}</option>`);}</script>
+    </select>
+    <button onclick="submitFinalScore()">Results</button>
+    <div id="finalsResult"></div>
+</div>
+
+</body>
+</html>
